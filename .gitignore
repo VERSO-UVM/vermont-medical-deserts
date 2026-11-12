@@ -1,0 +1,5 @@
+__pycache__/
+.venv/
+work/
+*.zip
+vt_npi.csv
