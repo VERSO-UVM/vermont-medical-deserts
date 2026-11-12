@@ -4,20 +4,18 @@ const $ = id => document.getElementById(id);
 const val = name => document.querySelector(`input[name=${name}]:checked`).value;
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const b64 = (s, T) => new T(Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer);
-const POP = Object.fromEntries(Object.entries(window.POP).map(([k, v]) => [k, b64(v, Float32Array)]));
+const POP = Object.fromEntries(Object.entries(window.POP).map(([k, v]) => [k, b64(v, Uint16Array)]));
 const memo = {}, cached = (k, f) => memo[k] || (memo[k] = f());
 
 const COLORS = { mh: '#7b3294', pc: '#1a9850', dent: '#2c7bb6', rx: '#d7191c', rehab: '#fdae61', spec: '#4d4d4d',
                  hosp: '#b2182b', nurse: '#41b6c4', comm: '#a6611a', sn: '#00897b', other: '#999' };
-const GROUPS = { all: ['All residents', 'people'], o65: ['Age 65+', 'people'], u18: ['Under 18', 'people'],
-                 nocar: ['No-vehicle households', 'households'] };
+const GROUPS = { all: 'All residents', o65: 'Age 65+', u18: 'Under 18' };
 const TIME = [[0, '#1a9850', '≤ 10 min'], [11, '#91cf60', '11–15'], [16, '#d9ef8b', '16–20'], [21, '#fee08b', '21–30'],
               [31, '#fc8d59', '31–45'], [46, '#d73027', '46–60'], [61, '#67001f', '> 60 min / none']];
 const OVERLAP = [[0, '#d7301f', '0 (hole)'], [1, '#fdcc8a', '1'], [2, '#c7e9c0', '2–3'], [4, '#74c476', '4–9'], [10, '#238b45', '10+']];
-const PEOPLE = [[0.5, '#f9a8c9', '1–24'], [25, '#f768a1', '25–99'], [100, '#c51b8a', '100–499'], [500, '#7a0177', '500+']];
-// no-vehicle counts are block-group estimates spread over blocks, so most rural squares hold a fraction
-const HOUSEHOLDS = [[0.05, '#f9a8c9', 'under 1 (estimated)'], [1, '#f768a1', '1–4'], [5, '#c51b8a', '5–19'], [20, '#7a0177', '20+']];
-const MIN = 0.05;   // below this a square counts as having nobody in the group
+const AGE = [[0, '#f1eef6', 'under 30'], [30, '#d0d1e6', '30–34'], [35, '#a6bddb', '35–39'], [40, '#74a9cf', '40–44'],
+             [45, '#3690c0', '45–49'], [50, '#0570b0', '50–54'], [55, '#034e7b', '55+']];
+const PEOPLE = [[1,'#f9a8c9', '1–24'], [25, '#f768a1', '25–99'], [100, '#c51b8a', '100–499'], [500, '#7a0177', '500+']];
 const pick = (scale, n) => scale.reduce((c, [t, col]) => (n >= t ? col : c), scale[0][1]);
 
 // ---- controls ----
@@ -26,7 +24,7 @@ sel.add(new Option('All categories (NPPES)', 'all'));
 D.cats.forEach(([k, l]) => sel.add(new Option(l, k)));
 sel.value = 'pc';
 $('thr').innerHTML = RD.thresholds.map(t => `<label><input type="radio" name="thr" value="${t}"${t === 20 ? ' checked' : ''}>${t} min</label>`).join('');
-$('age').innerHTML = Object.entries(GROUPS).map(([k, [l]], i) => `<label><input type="radio" name="age" value="${k}"${i ? '' : ' checked'}>${l}</label>`).join('');
+$('age').innerHTML = Object.entries(GROUPS).map(([k, l], i) => `<label><input type="radio" name="age" value="${k}"${i ? '' : ' checked'}>${l}</label>`).join('');
 
 // ---- map ----
 const map = L.map('map', { preferCanvas: true }).setView([43.9, -72.6], 8);
@@ -97,13 +95,13 @@ function render() {
   const near = cached('n' + ci, () => b64(RD.nearest[ci], Uint8Array));
   const cnt = cached(`c${ci}_${ti}`, () => b64(RD.counts[ci][ti], Uint8Array));
 
-  const PSCALE = age === 'nocar' ? HOUSEHOLDS : PEOPLE;
   if (mode === 'none') { if (gridImg) map.removeLayer(gridImg); gridImg = null; }
   else drawGrid(i => {
-    if (mode === 'people') return near[i] > T && pop[i] >= MIN ? rgba(pick(PSCALE, pop[i]), 0.85) : null;
+    if (mode === 'people') return near[i] > T && pop[i] >= 1 ? rgba(pick(PEOPLE, pop[i]), 0.85) : null;
     // drive time where the selected group lives; squares with nobody in the group stay faint
-    if (mode === 'time') return rgba(pick(TIME, near[i]), pop[i] < MIN ? 0.07 : near[i] > T ? 0.8 : 0.35);
+    if (mode === 'time') return rgba(pick(TIME, near[i]), pop[i] < 1 ? 0.07 : near[i] > T ? 0.8 : 0.35);
     if (mode === 'overlap') return rgba(pick(OVERLAP, cnt[i]), 0.55);
+    if (mode === 'age') return POP.age10[i] ? rgba(pick(AGE, POP.age10[i] / 10), 0.75) : null;
     return near[i] > T ? rgba(OVERLAP[0][1], 0.55) : null;
   });
 
@@ -120,9 +118,10 @@ function render() {
                            fillColor: col, fillOpacity: l.a ? 0 : 0.85 }).bindPopup(() => popup(l, list)).addTo(ptLayer);
   }
 
-  const scale = { people: PSCALE, time: TIME, overlap: OVERLAP, gaps: [OVERLAP[0]] }[mode] || [];
-  const title = { people: `${GROUPS[age][0]} more than ${T} min away, per 1.5 km square`,
-                  time: `Drive time to nearest provider, where ${GROUPS[age][0].toLowerCase()} live (within ${T} min lighter)`,
+  const scale = { people: PEOPLE, time: TIME, overlap: OVERLAP, gaps: [OVERLAP[0]], age: AGE }[mode] || [];
+  const title = { age: 'Average age of residents, 2020 Census (squares with 10+ residents)',
+                  people: `${GROUPS[age]} more than ${T} min away, per 1.5 km square`,
+                  time: `Drive time to nearest provider, where ${GROUPS[age].toLowerCase()} live (within ${T} min lighter)`,
                   overlap: `Provider locations within ${T} min`, gaps: `No provider within ${T} min` }[mode];
   $('legend').innerHTML = scale.length ? `<div class="muted">${title}</div>` + scale.map((o, k) => {
     const faded = mode === 'time' && (scale[k + 1] ? scale[k + 1][0] - 1 : 999) <= T;
@@ -132,7 +131,7 @@ function render() {
   let beyondArea = 0;
   for (let i = 0; i < near.length; i++) if (near[i] > T) beyondArea++;
   const sqmi = beyondArea * (G.dlat * 111) * (G.dlon * 111 * Math.cos(43.9 * Math.PI / 180)) / 2.59;
-  const rows = Object.entries(GROUPS).map(([k, [label]]) => {
+  const rows = Object.entries(GROUPS).map(([k, label]) => {
     let tot = 0, out = 0;
     POP[k].forEach((v, i) => { tot += v; if (near[i] > T) out += v; });
     return `<tr${k === age ? ' style="font-weight:600"' : ''}><td>${label}</td><td>${Math.round(out).toLocaleString()} · ${(100 * out / tot).toFixed(1)}%</td></tr>`;
@@ -146,9 +145,9 @@ function render() {
 
   const town = {};
   G.town.forEach((t, i) => { const v = town[t] || (town[t] = [0, 0]); v[0] += pop[i]; if (near[i] > T) v[1] += pop[i]; });
-  const worst = Object.entries(town).filter(([, v]) => v[1] >= MIN).sort((a, b) => b[1][1] - a[1][1]).slice(0, 30);
+  const worst = Object.entries(town).filter(([, v]) => v[1] >= 1).sort((a, b) => b[1][1] - a[1][1]).slice(0, 30);
   $('worst').innerHTML = worst.length
-    ? `<tr class="muted"><td>Town</td><td>${GROUPS[age][1]} · % of town</td></tr>` + worst.map(([t, v]) =>
+    ? '<tr class="muted"><td>Town</td><td>people · % of town</td></tr>' + worst.map(([t, v]) =>
       `<tr class="click" data-t="${esc(D.towns[t])}"><td>${esc(D.towns[t])}</td><td>${Math.round(v[1]).toLocaleString()} · ${Math.round(100 * v[1] / v[0])}%</td></tr>`).join('')
     : '<tr><td class="muted">Nobody in this group lives beyond the threshold.</td></tr>';
 }

@@ -11,7 +11,8 @@ An interactive map of health care access in Vermont. It shows where providers pr
 - **Drive time:** for each 1.5 km grid square, the drive time to the nearest provider in the selected category.
 - **Overlap:** how many provider locations are within 10, 15, 20, 30 or 45 minutes.
 - **Holes:** the areas beyond the selected threshold.
-- **People beyond the threshold:** counts for all residents, people 65+, children under 18 and households without a vehicle.
+- **Average age:** a layer showing the average age of residents in each grid square, estimated from 2020 Census age brackets. Squares with fewer than 10 residents are left blank.
+- **People beyond the threshold:** counts for all residents, people 65+ and children under 18. The drive-time view also shows only the squares where the selected group lives.
 - **Billed Medicare filter:** an optional filter that keeps only clinicians with 2024 Medicare Part B claims. It screens out registrations that don't appear to be in active practice. It's only offered for primary care, specialists and nursing/NP/PA, where Medicare data is meaningful.
 - **Shortage areas:** federal Health Professional Shortage Areas (HPSAs) for primary care, dental and mental health, as an overlay.
 - **Towns:** the towns with the most people beyond the threshold.
@@ -25,7 +26,6 @@ An interactive map of health care access in Vermont. It shows where providers pr
 | Roads | [OpenStreetMap](https://www.openstreetmap.org/copyright) Vermont extract from Geofabrik |
 | Town boundaries | Vermont Center for Geographic Information (VCGI) |
 | Population and age | [2020 Census DHC](https://www2.census.gov/programs-surveys/decennial/2020/data/demographic-and-housing-characteristics-file/Vermont/), table P12, census blocks |
-| Households without a vehicle | [ACS 2020–2024 5-year](https://www2.census.gov/programs-surveys/acs/summary_file/2024/table-based-SF/), table B25044, block groups. Spread over each block group's blocks by population. |
 | Medicare activity | [Medicare Physician & Other Practitioners – by Provider, 2024](https://data.cms.gov/provider-summary-by-type-of-service/medicare-physician-other-practitioners/medicare-physician-other-practitioners-by-provider) |
 | Health center sites | [HRSA Health Center Service Delivery Sites](https://data.hrsa.gov/data/download) |
 | Rural health clinics | [CMS Rural Health Clinic Enrollments](https://data.cms.gov/provider-characteristics/hospitals-and-other-facilities/rural-health-clinic-enrollments) |
@@ -65,7 +65,6 @@ The scripts in `scripts/` rebuild the data files. Install the dependencies with 
    - the HRSA files, in `hrsa/`
    - `rhc_vt.json` and `rhc_geo.json`: rural health clinics and their geocodes
    - `census/vt2020.dhc.zip`
-   - `acs/b25044.dat`
 4. `python scripts/build.py` writes `app/data.js`.
 5. `python scripts/roads.py` writes `app/roads.js`.
 6. `python scripts/population.py` writes `app/pop.js`.

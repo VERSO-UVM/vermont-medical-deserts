@@ -8,7 +8,7 @@
 <title>Vermont Provider Coverage</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
-<link rel="stylesheet" href="style.css?v=20261112e">
+<link rel="stylesheet" href="style.css?v=20261112g">
 </head>
 <body>
 <div id="panel">
@@ -36,6 +36,7 @@
   <label><input type="radio" name="mode" value="time" checked> Drive time to nearest provider</label>
   <label><input type="radio" name="mode" value="overlap"> Overlap (locations within threshold)</label>
   <label><input type="radio" name="mode" value="gaps"> Holes only (beyond threshold)</label>
+  <label><input type="radio" name="mode" value="age"> Average age of residents</label>
   <label><input type="radio" name="mode" value="none"> None</label>
   <div class="legend" id="legend"></div>
 
@@ -63,18 +64,19 @@
     where that data is meaningful.</p>
     <p>Safety-net clinics are HRSA health center sites and CMS-enrolled rural health clinics. School-based and
     nursing-home sites (hollow) serve only their own students or residents and are not used for drive times.</p>
-    <p>Population: 2020 Census blocks. Households without a vehicle: ACS 2020–2024 by block group, spread over its
-    blocks by population. Shortage areas: HRSA, designated or proposed for withdrawal.</p>
+    <p>Population: 2020 Census blocks. Average age is estimated from the Census age brackets (mid-point of each,
+    89 for 85+) and shown only for squares with 10 or more residents. Shortage areas: HRSA, designated or proposed
+    for withdrawal.</p>
   </div>
 </div>
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
-<script src="data.js?v=20261112e"></script>
-<script src="roads.js?v=20261112e"></script>
-<script src="pop.js?v=20261112e"></script>
-<script src="hpsa.js?v=20261112e"></script>
-<script src="app.js?v=20261112e"></script>
+<script src="data.js?v=20261112g"></script>
+<script src="roads.js?v=20261112g"></script>
+<script src="pop.js?v=20261112g"></script>
+<script src="hpsa.js?v=20261112g"></script>
+<script src="app.js?v=20261112g"></script>
 </body>
 </html>
