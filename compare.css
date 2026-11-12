@@ -1,0 +1,28 @@
+body { margin: 0; font: 15px/1.5 system-ui, sans-serif; color: #222; background: #fff; }
+main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 48px; }
+h1 { font-size: 24px; margin: 8px 0 6px; line-height: 1.25; }
+h2 { font-size: 17px; margin: 0 0 8px; }
+section { margin-top: 28px; }
+.lede { color: #444; margin: 0 0 16px; }
+.muted { color: #666; font-size: 13px; }
+.navlink { font-size: 13px; color: #2c7bb6; }
+.controls { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-end; padding: 12px 14px;
+            background: #f6f7f9; border: 1px solid #e3e5e8; border-radius: 6px; position: sticky; top: 0; z-index: 1000; }
+.controls select { font: inherit; margin-left: 6px; }
+.lbl { display: block; font-size: 12px; color: #666; margin-bottom: 3px; }
+.seg { display: flex; gap: 4px; flex-wrap: wrap; }
+.seg label { padding: 3px 9px; border: 1px solid #bbb; border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+.seg input { display: none; }
+.seg label:has(input:checked) { background: #2c7bb6; color: #fff; border-color: #2c7bb6; }
+table.data { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.data th, table.data td { padding: 6px 8px; border-bottom: 1px solid #e3e5e8; text-align: right; font-variant-numeric: tabular-nums; }
+table.data th:first-child, table.data td:first-child { text-align: left; }
+table.data th { font-size: 12px; color: #555; font-weight: 600; vertical-align: bottom; }
+table.data tr.vt td { background: #f1f7fc; font-weight: 600; }
+.bar { display: inline-block; height: 8px; background: #d7301f; border-radius: 2px; margin-left: 6px; vertical-align: middle; opacity: .75; }
+#map { height: 560px; border: 1px solid #e3e5e8; border-radius: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 12px; color: #444; }
+.legend span { display: inline-block; width: 14px; height: 12px; vertical-align: middle; margin-right: 5px; }
+.grid-img { image-rendering: pixelated; }
+ul.muted { padding-left: 18px; }
+@media (max-width: 700px) { #map { height: 420px; } table.data { font-size: 12px; } table.data th, table.data td { padding: 5px 4px; } }

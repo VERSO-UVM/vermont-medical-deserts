@@ -2,3 +2,4 @@ numpy
 scipy
 osmium
 pyshp
+shapely

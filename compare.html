@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Northern New England Access</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+<link rel="stylesheet" href="compare.css?v=20261112i">
+</head>
+<body>
+<main>
+  <a class="navlink" href="index.html">← Vermont provider map</a>
+  <h1>Vermont, New Hampshire and Massachusetts: drive-time access to care</h1>
+  <p class="lede">The same method as the Vermont map, applied to all three states: drive time over OpenStreetMap roads
+  from every 2020 census block to the nearest provider, weighted by where people live.</p>
+
+  <div class="controls">
+    <label>Care type <select id="cat"></select></label>
+    <div><span class="lbl">Threshold</span><div class="seg" id="thr"></div></div>
+    <div><span class="lbl">Providers counted</span><div class="seg" id="ver">
+      <label><input type="radio" name="ver" value="region" checked>Any nearby, incl. across state lines</label>
+      <label><input type="radio" name="ver" value="own">In-state only</label>
+    </div></div>
+  </div>
+
+  <section>
+    <h2 id="headTitle"></h2>
+    <table id="head" class="data"></table>
+    <p class="muted" id="headNote"></p>
+  </section>
+
+  <section>
+    <h2>Region overview</h2>
+    <div id="map"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section>
+    <h2>How much each state relies on its neighbours</h2>
+    <p class="muted">Share of residents beyond the threshold when only in-state providers count, compared with counting
+    providers across state lines (within 30 miles into NY, ME, CT and RI, and anywhere in the three states).</p>
+    <table id="cross" class="data"></table>
+  </section>
+
+  <section>
+    <h2>Supply and shortage designations</h2>
+    <table id="supply" class="data"></table>
+    <p class="muted">Clinicians are individual NPPES registrations by practice address, not full-time equivalents.
+    Hospitals are active acute-care and critical-access hospitals in the CMS Provider of Services file (Q3 2026), with
+    certified beds. Shortage areas are HRSA geographic and population HPSAs, designated or proposed for withdrawal;
+    the share is the designated population divided by the state's 2020 population.</p>
+  </section>
+
+  <section>
+    <h2>Method and caveats</h2>
+    <ul class="muted">
+      <li>Providers: NPPES November 2026, active NPIs, grouped by primary taxonomy exactly as on the Vermont map.
+        About 92% of addresses matched a street address in the Census geocoder; the rest use the ZIP centroid.</li>
+      <li>Roads: OpenStreetMap extracts for VT, NH, MA, NY, ME, CT and RI, typical speeds by road class, slower on
+        unpaved roads, no traffic, ferries or seasonal closures. Lake Champlain is a barrier except at its bridges.</li>
+      <li>Population: 2020 Census blocks (DHC). Statistics are computed per block; the map shows 1.5 km squares.</li>
+      <li>Not included: Québec, providers more than 30 miles outside the three states, and anything about capacity
+        (hours, new patients, insurance accepted). A provider nearby is not the same as an appointment available.</li>
+    </ul>
+  </section>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<script src="compare-data.js?v=20261112i"></script>
+<script src="grid.js?v=20261112i"></script>
+<script src="compare.js?v=20261112i"></script>
+</body>
+</html>

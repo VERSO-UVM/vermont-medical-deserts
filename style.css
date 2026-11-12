@@ -28,3 +28,4 @@ tr.click { cursor: pointer; } tr.click:hover { background: #eee; }
   #panel { width: 100%; bottom: 55%; border-right: 0; border-bottom: 1px solid #ddd; }
   #map { inset: 45% 0 0 0; }
 }
+.navlink { display: inline-block; margin-top: 8px; font-size: 13px; color: #2c7bb6; }

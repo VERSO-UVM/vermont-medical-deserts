@@ -2,8 +2,6 @@
 const D = window.DATA, RD = window.ROADS;
 const $ = id => document.getElementById(id);
 const val = name => document.querySelector(`input[name=${name}]:checked`).value;
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const b64 = (s, T) => new T(Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer);
 const POP = Object.fromEntries(Object.entries(window.POP).map(([k, v]) => [k, b64(v, Uint16Array)]));
 const memo = {}, cached = (k, f) => memo[k] || (memo[k] = f());
 
@@ -16,7 +14,6 @@ const OVERLAP = [[0, '#d7301f', '0 (hole)'], [1, '#fdcc8a', '1'], [2, '#c7e9c0',
 const AGE = [[0, '#f1eef6', 'under 30'], [30, '#d0d1e6', '30–34'], [35, '#a6bddb', '35–39'], [40, '#74a9cf', '40–44'],
              [45, '#3690c0', '45–49'], [50, '#0570b0', '50–54'], [55, '#034e7b', '55+']];
 const PEOPLE = [[1,'#f9a8c9', '1–24'], [25, '#f768a1', '25–99'], [100, '#c51b8a', '100–499'], [500, '#7a0177', '500+']];
-const pick = (scale, n) => scale.reduce((c, [t, col]) => (n >= t ? col : c), scale[0][1]);
 
 // ---- controls ----
 const sel = $('cat');
@@ -34,33 +31,10 @@ const townLayer = L.geoJSON(window.TOWNS, { style: { color: '#333', weight: 0.7,
 const townBounds = {};
 townLayer.eachLayer(l => { townBounds[l.feature.properties.name] = l.getBounds(); });
 const ptLayer = L.layerGroup().addTo(map), snLayer = L.layerGroup(), hpsaLayer = L.layerGroup();
-let gridImg = null;
 
-// grid cells -> row/col of one raster drawn in Web Mercator so it lines up with the tiles
-const G = D.grid, LAT0 = 42.72, LON0 = -73.44, PX = 8;
-const rc = G.cells.map(([la, lo]) => [Math.round((la - LAT0) / G.dlat), Math.round((lo - LON0) / G.dlon)]);
-const NR = Math.max(...rc.map(r => r[0])) + 1, NC = Math.max(...rc.map(r => r[1])) + 1;
-const merc = la => Math.log(Math.tan(Math.PI / 4 + la * Math.PI / 360));
-const M0 = merc(LAT0), M1 = merc(LAT0 + NR * G.dlat), H = NR * PX;
-const ypx = la => (M1 - merc(la)) / (M1 - M0) * H;
-// whole-pixel row edges shared by neighbouring rows, so rows neither overlap nor leave gaps
-const rowY = Array.from({ length: NR + 1 }, (_, r) => Math.round(ypx(LAT0 + r * G.dlat)));
-const gridBounds = [[LAT0, LON0], [LAT0 + NR * G.dlat, LON0 + NC * G.dlon]];
-
-function drawGrid(colorOf) {
-  const cv = document.createElement('canvas');
-  cv.width = NC * PX; cv.height = H;
-  const ctx = cv.getContext('2d');
-  rc.forEach(([r, c], i) => {
-    const s = colorOf(i);
-    if (!s) return;
-    ctx.fillStyle = s;
-    ctx.fillRect(c * PX, rowY[r + 1], PX, rowY[r] - rowY[r + 1]);
-  });
-  if (gridImg) map.removeLayer(gridImg);
-  gridImg = L.imageOverlay(cv.toDataURL(), gridBounds, { className: 'grid-img', interactive: false }).addTo(map);
-}
-const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
+const G = D.grid;
+const grid = GridLayer(map, 42.72, -73.44, G.dlat, G.dlon,
+  G.cells.map(([la, lo]) => [Math.round((la - 42.72) / G.dlat), Math.round((lo + 73.44) / G.dlon)]));
 
 // ---- markers ----
 const isSN = l => l.p[0][1] === 'sn';
@@ -96,8 +70,8 @@ function render() {
   const near = cached('n' + ci, () => b64(RD.nearest[ci], Uint8Array));
   const cnt = cached(`c${ci}_${ti}`, () => b64(RD.counts[ci][ti], Uint8Array));
 
-  if (mode === 'none') { if (gridImg) map.removeLayer(gridImg); gridImg = null; }
-  else drawGrid(i => {
+  if (mode === 'none') grid.clear();
+  else grid.draw(i => {
     if (mode === 'people') return near[i] > T && pop[i] >= 1 ? rgba(pick(PEOPLE, pop[i]), 0.85) : null;
     // drive time where the selected group lives; squares with nobody in the group stay faint
     if (mode === 'time') return rgba(pick(TIME, near[i]), pop[i] < 1 ? 0.07 : near[i] > T ? 0.8 : 0.35);
