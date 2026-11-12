@@ -1,4 +1,4 @@
-import csv, io, json, sys, urllib.request, uuid, os
+import csv, io, json, os, urllib.request, uuid
 C='Provider Business Practice Location Address '
 rows=list(csv.DictReader(open('vt_npi.csv',encoding='utf-8')))
 addrs={}

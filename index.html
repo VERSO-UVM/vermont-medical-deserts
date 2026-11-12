@@ -3,56 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Vermont Provider Coverage</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>
-  html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, sans-serif; color: #222; }
-  #map { position: absolute; inset: 0 0 0 330px; }
-  #panel { position: absolute; top: 0; left: 0; bottom: 0; width: 330px; overflow-y: auto;
-           box-sizing: border-box; padding: 14px 16px; background: #fafafa; border-right: 1px solid #ddd; }
-  h1 { font-size: 17px; margin: 0 0 4px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #666; margin: 18px 0 6px; }
-  label { display: block; margin: 3px 0; cursor: pointer; }
-  .muted { color: #666; font-size: 12px; }
-  .stat { display: flex; justify-content: space-between; padding: 2px 0; }
-  .stat b { font-variant-numeric: tabular-nums; }
-  .legend span { display: inline-block; width: 14px; height: 12px; vertical-align: middle; margin-right: 6px; }
-  .legend div { margin: 2px 0; }
-  select, input[type=range] { width: 100%; }
-  .seg { display: flex; gap: 4px; flex-wrap: wrap; }
-  .seg label { margin: 0; padding: 3px 9px; border: 1px solid #bbb; border-radius: 4px; background: #fff; }
-  .seg input { display: none; }
-  .seg label:has(input:checked) { background: #2c7bb6; color: #fff; border-color: #2c7bb6; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  td { padding: 2px 0; } td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
-  tr.click { cursor: pointer; } tr.click:hover { background: #eee; }
-  .popup-list { max-height: 220px; overflow-y: auto; margin: 6px 0 0; padding-left: 16px; }
-  @media (max-width: 700px) { #panel { width: 100%; bottom: 55%; border-right: 0; border-bottom: 1px solid #ddd; }
-                              #map { inset: 45% 0 0 0; } }
-</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="panel">
   <h1>Vermont provider coverage</h1>
-  <div class="muted">NPPES November 2026 · active NPIs with a VT practice address · drive times over OpenStreetMap roads</div>
+  <div class="muted">NPPES Nov 2026 · drive times over OpenStreetMap roads · 2020 Census population</div>
 
   <h2>Provider category</h2>
   <select id="cat"></select>
-  <div class="seg" style="margin-top:6px">
+  <div class="seg" id="who">
     <label><input type="radio" name="who" value="all" checked>All</label>
     <label><input type="radio" name="who" value="org">Organizations</label>
     <label><input type="radio" name="who" value="ind">Individuals</label>
+    <label><input type="radio" name="who" value="mcr">Billed Medicare</label>
   </div>
+  <div class="muted note" id="whoNote"></div>
 
   <h2>Drive-time threshold</h2>
   <div class="seg" id="thr"></div>
 
   <h2>Population</h2>
-  <div class="seg">
-    <label><input type="radio" name="age" value="all" checked>All residents</label>
-    <label><input type="radio" name="age" value="o65">65+</label>
-    <label><input type="radio" name="age" value="u18">Under 18</label>
-  </div>
+  <div class="seg" id="age"></div>
 
   <h2>Layer</h2>
   <label><input type="radio" name="mode" value="people"> Residents beyond threshold</label>
@@ -60,173 +37,44 @@
   <label><input type="radio" name="mode" value="overlap"> Overlap (locations within threshold)</label>
   <label><input type="radio" name="mode" value="gaps"> Holes only (beyond threshold)</label>
   <label><input type="radio" name="mode" value="none"> None</label>
-  <label><input type="checkbox" id="pts" checked> Show provider locations</label>
-  <label><input type="checkbox" id="towns" checked> Town boundaries</label>
-
   <div class="legend" id="legend"></div>
+
+  <h2>Overlays</h2>
+  <label><input type="checkbox" id="pts" checked> Provider locations</label>
+  <label><input type="checkbox" id="sn"> Safety-net clinics (FQHC &amp; RHC)</label>
+  <label><input type="checkbox" id="hpsa"> Federal shortage areas (HPSA):</label>
+  <select id="hpsaKind"><option value="pc">Primary care</option><option value="dent">Dental</option><option value="mh">Mental health</option></select>
+  <div class="muted note" id="hpsaNote"></div>
+  <label><input type="checkbox" id="towns" checked> Town boundaries</label>
 
   <h2>Summary</h2>
   <div id="summary"></div>
 
-  <h2>Towns with the most residents beyond threshold</h2>
+  <h2>Towns with the most people beyond threshold</h2>
   <div class="muted">For the selected population group. Click a town to zoom.</div>
   <table id="worst"></table>
 
   <h2>Notes</h2>
-  <div class="muted">Drive times use typical speeds by road class (slower on unpaved roads), with no traffic or
-  winter closures (e.g. Smugglers' Notch, Route 108). Each 1.5 km grid square is timed from its centre, plus a
-  short off-road leg to the nearest road. Only Vermont roads and providers are included, so border areas may
-  have closer care in NH, NY, MA or Québec. Locations are NPPES practice addresses, which are sometimes billing
-  offices. Hollow dots are placed at a ZIP centroid. Population is from the 2020 Census (DHC) by block, assigned to
-  the grid square containing each block's centre; small-block counts include Census privacy noise, but totals are
-  reliable.</div>
+  <div class="muted">
+    <p>Drive times use typical speeds by road class (slower on unpaved roads), with no traffic or seasonal closures.
+    Only Vermont roads and providers are included, so border towns may have closer care in NH, NY, MA or Québec.</p>
+    <p>Provider locations are NPPES practice addresses, sometimes billing offices. Hollow dots sit at a ZIP centroid.
+    "Billed Medicare" keeps clinicians with Medicare Part B claims in their own name in 2024; it is only offered
+    where that data is meaningful.</p>
+    <p>Safety-net clinics are HRSA health center sites and CMS-enrolled rural health clinics. School-based and
+    nursing-home sites (hollow) serve only their own students or residents and are not used for drive times.</p>
+    <p>Population: 2020 Census blocks. Households without a vehicle: ACS 2020–2024 by block group, spread over its
+    blocks by population. Shortage areas: HRSA, designated or proposed for withdrawal.</p>
+  </div>
 </div>
 <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script src="data.js"></script>
 <script src="roads.js"></script>
 <script src="pop.js"></script>
-<script>
-const D = window.DATA, RD = window.ROADS;
-const POP = {}; for (const k in window.POP) POP[k] = new Uint32Array(Uint8Array.from(atob(window.POP[k]), c => c.charCodeAt(0)).buffer);
-const AGE = { all: 'All residents', o65: 'Age 65+', u18: 'Under 18' };
-const PEOPLE = [[1,'#fde0dd','1–24'],[25,'#fa9fb5','25–99'],[100,'#dd3497','100–499'],[500,'#7a0177','500+']];
-const COLORS = { mh:'#7b3294', pc:'#1a9850', dent:'#2c7bb6', rx:'#d7191c', rehab:'#fdae61',
-                 spec:'#4d4d4d', hosp:'#b2182b', nurse:'#41b6c4', comm:'#a6611a', other:'#999' };
-const $ = id => document.getElementById(id);
-const dec = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
-const cache = {};
-const arr = (key, f) => cache[key] || (cache[key] = f());
-
-const sel = $('cat');
-sel.add(new Option('All categories', 'all'));
-D.cats.forEach(([k, l]) => sel.add(new Option(l, k)));
-sel.value = 'pc';
-$('thr').innerHTML = RD.thresholds.map(t =>
-  `<label><input type="radio" name="thr" value="${t}" ${t === 20 ? 'checked' : ''}>${t} min</label>`).join('');
-
-const map = L.map('map', { preferCanvas: true }).setView([43.9, -72.6], 8);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19 }).addTo(map);
-const canvas = L.canvas({ padding: 0.3 });
-
-const townLayer = L.geoJSON(window.TOWNS, {
-  style: { color: '#333', weight: 0.7, fill: false }, interactive: false }).addTo(map);
-const gridLayer = L.layerGroup().addTo(map);
-const ptLayer = L.layerGroup().addTo(map);
-
-const val = name => document.querySelector(`input[name=${name}]:checked`).value;
-
-function selectedLocs(c, who) {
-  const out = [];
-  for (const l of D.locs) {
-    const p = l.p.filter(x => (c === 'all' || x[1] === c) && (who === 'all' || (x[3] === 2) === (who === 'org')));
-    if (p.length) out.push({ ...l, sel: p });
-  }
-  return out;
-}
-
-const TIME = [[0,'#1a9850','≤ 10 min'],[11,'#91cf60','11–15'],[16,'#d9ef8b','16–20'],[21,'#fee08b','21–30'],
-              [31,'#fc8d59','31–45'],[46,'#d73027','46–60'],[61,'#67001f','> 60 min / none']];
-const OVERLAP = [[0,'#d7301f','0 — hole'],[1,'#fdcc8a','1'],[2,'#c7e9c0','2–3'],[4,'#74c476','4–9'],[10,'#238b45','10+']];
-const pick = (scale, n) => { let c = scale[0][1]; for (const [t, col] of scale) if (n >= t) c = col; return c; };
-
-function render() {
-  const c = sel.value, who = val('who'), T = +val('thr'), mode = val('mode'), age = val('age'), pop = POP[age];
-  const ci = RD.combos.indexOf(c + '|' + who), ti = RD.thresholds.indexOf(T);
-  const near = arr('n' + ci, () => dec(RD.nearest[ci]));
-  const cnt = arr('c' + ci + '_' + ti, () => dec(RD.counts[ci][ti]));
-  const { dlat, dlon, cells } = D.grid;
-  const locs = selectedLocs(c, who);
-  gridLayer.clearLayers(); ptLayer.clearLayers();
-
-  if (mode !== 'none') {
-    cells.forEach((cell, i) => {
-      let col, op = 0.5;
-      if (mode === 'people') { if (near[i] <= T || !pop[i]) return; col = pick(PEOPLE, pop[i]); op = 0.8; }
-      else if (mode === 'time') { col = pick(TIME, near[i]); op = near[i] > T ? 0.7 : 0.12; }
-      else if (mode === 'overlap') col = pick(OVERLAP, cnt[i]);
-      else if (near[i] > T) col = OVERLAP[0][1]; else return;
-      L.rectangle([[cell[0], cell[1]], [cell[0] + dlat, cell[1] + dlon]], {
-        renderer: canvas, stroke: false, fillColor: col, fillOpacity: op, interactive: false }).addTo(gridLayer);
-    });
-  }
-
-  if ($('pts').checked) {
-    locs.forEach(l => {
-      const n = l.sel.length, col = c === 'all' ? COLORS[l.sel[0][1]] : COLORS[c];
-      const m = L.circleMarker(l.ll, { renderer: canvas, radius: Math.min(3 + Math.sqrt(n) * 1.6, 16),
-        color: '#222', weight: 0.8, fillColor: col, fillOpacity: l.a ? 0 : 0.85 });
-      m.bindPopup(() => `<b>${l.addr}</b>${l.t ? '<br>Town: ' + l.t : ''}${l.a ? '<br><i>approximate (ZIP centroid)</i>' : ''}
-        <br>${n} provider${n > 1 ? 's' : ''} in selection<ol class="popup-list">` +
-        l.sel.slice(0, 200).map(p => `<li>${p[0]} <span class="muted">${p[2]}</span></li>`).join('') + '</ol>');
-      m.addTo(ptLayer);
-    });
-  }
-
-  const scale = mode === 'people' ? PEOPLE : mode === 'time' ? TIME : mode === 'overlap' ? OVERLAP : mode === 'gaps' ? [OVERLAP[0]] : [];
-  const title = mode === 'people' ? `${AGE[age]} more than ${T} min away, per 1.5 km square`
-              : mode === 'time' ? `Drive time to nearest provider<br>Areas within ${T} min are faded`
-              : mode === 'overlap' ? `Provider locations within ${T} min` : mode === 'gaps' ? `Beyond ${T} min` : '';
-  $('legend').innerHTML = scale.length ? `<div class="muted" style="margin-top:8px">${title}</div>` +
-    scale.map((o, k) => {
-      const faded = mode === 'time' && (scale[k + 1] ? scale[k + 1][0] - 1 : 999) <= T;
-      return `<div style="opacity:${faded ? .35 : 1}"><span style="background:${o[1]};opacity:.75"></span>${mode === 'gaps' ? 'No provider within ' + T + ' min' : o[2]}</div>`;
-    }).join('') : '';
-
-  let holes = 0, sum = 0, n30 = 0;
-  for (let i = 0; i < cells.length; i++) { if (near[i] > T) holes++; if (near[i] > 30) n30++; sum += Math.min(near[i], 90); }
-  const people = locs.reduce((s, l) => s + l.sel.length, 0);
-  const cellKm2 = (dlat * 111) * (dlon * 111 * Math.cos(43.9 * Math.PI / 180));
-  $('summary').innerHTML = [
-    ['Providers in selection', people.toLocaleString()],
-    ['Distinct locations', locs.length.toLocaleString()],
-    [`VT area beyond ${T} min`, (100 * holes / cells.length).toFixed(1) + '%'],
-    ['≈ square miles beyond', Math.round(holes * cellKm2 / 2.59).toLocaleString()],
-    ['VT area beyond 30 min', (100 * n30 / cells.length).toFixed(1) + '%'],
-    ['Average drive (by area)', Math.round(sum / cells.length) + ' min'],
-  ].map(([a, b]) => `<div class="stat"><span>${a}</span><b>${b}</b></div>`).join('') +
-    `<table style="margin-top:8px"><tr class="muted"><td>Residents more than ${T} min away</td><td>people · % of group</td></tr>` +
-    Object.keys(AGE).map(k => {
-      let tot = 0, out = 0; const p = POP[k];
-      for (let i = 0; i < cells.length; i++) { tot += p[i]; if (near[i] > T) out += p[i]; }
-      return `<tr${k === age ? ' style="font-weight:600"' : ''}><td>${AGE[k]}</td><td>${out.toLocaleString()} · ${(100 * out / tot).toFixed(1)}%</td></tr>`;
-    }).join('') + '</table>';
-
-  const town = {};
-  cells.forEach((_, i) => {
-    const t = cellTown[i]; if (!t) return;
-    town[t] = town[t] || [0, 0]; town[t][0] += pop[i]; if (near[i] > T) town[t][1] += pop[i];
-  });
-  const worst = Object.entries(town).filter(([, v]) => v[1]).sort((a, b) => b[1][1] - a[1][1]).slice(0, 30);
-  $('worst').innerHTML = worst.length
-    ? '<tr class="muted"><td>Town</td><td>people · % of town</td></tr>' +
-      worst.map(([t, v]) => `<tr class="click" data-t="${t}"><td>${t}</td><td>${v[1].toLocaleString()} · ${Math.round(100 * v[1] / v[0])}%</td></tr>`).join('')
-    : `<tr><td class="muted">No ${AGE[age].toLowerCase()} live beyond the threshold.</td></tr>`;
-}
-
-function pip(x, y, ring) { let ins = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i], [xj, yj] = ring[j];
-    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; }
-  return ins; }
-const title = s => s.replace(/\w\S*/g, w => w[0] + w.slice(1).toLowerCase());
-const cellTown = D.grid.cells.map(c => {
-  const x = c[1] + D.grid.dlon/2, y = c[0] + D.grid.dlat/2;
-  for (const f of window.TOWNS.features) {
-    const g = f.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
-    if (polys.some(p => pip(x, y, p[0]))) return title(f.properties.TOWNNAME);
-  }
-});
-const townBounds = {};
-townLayer.eachLayer(l => townBounds[title(l.feature.properties.TOWNNAME)] = l.getBounds());
-$('worst').addEventListener('click', e => { const tr = e.target.closest('tr[data-t]'); if (tr) map.fitBounds(townBounds[tr.dataset.t]); });
-
-$('towns').onchange = () => $('towns').checked ? townLayer.addTo(map) : map.removeLayer(townLayer);
-['cat', 'pts'].forEach(id => $(id).onchange = render);
-document.querySelectorAll('input[name=mode],input[name=who],input[name=thr],input[name=age]').forEach(r => r.onchange = render);
-render();
-</script>
+<script src="hpsa.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

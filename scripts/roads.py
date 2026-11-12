@@ -105,7 +105,7 @@ for v, pts in h.ways:
 lat, lon = np.array(lat), np.array(lon)
 n = len(lat)
 G = coo_matrix((W + W, (A + B, B + A)), shape=(n, n)).tocsr()   # treated as two-way
-ncomp, lab = connected_components(G, directed=False)
+_, lab = connected_components(G, directed=False)
 main = lab == np.bincount(lab).argmax()
 print('routing nodes', n, 'edges', len(A), 'main component', main.sum(), '%.0fs' % (time.time() - t0))
 
@@ -129,7 +129,7 @@ print('cells', len(cells), 'median cell->road km %.2f, >3km: %d' %
       (np.median(coff) * OFFROAD_KMH / 60, (coff * OFFROAD_KMH / 60 > 3).sum()))
 
 cats = ['all'] + [c[0] for c in D['cats']]
-filters = ['all', 'org', 'ind']
+filters = ['all', 'org', 'ind', 'mcr']     # mcr = individuals who billed Medicare Part B in 2024
 combo = {(c, f): i for i, (c, f) in enumerate((c, f) for c in cats for f in filters)}
 NC = len(combo)
 
@@ -141,8 +141,10 @@ for k, l in enumerate(D['locs']):
     keys = set()
     for p in l['p']:
         f = 'org' if p[3] == 2 else 'ind'
-        for c in ('all', p[1]):
+        for c in ((p[1],) if p[1] == 'sn' else ('all', p[1])):   # safety-net sites are not NPPES rows
             keys |= {(c, 'all'), (c, f)}
+            if f == 'ind' and p[4] > 0:
+                keys.add((c, 'mcr'))
     s['off'].append(loff[k]); s['combos'].append([combo[x] for x in keys])
 
 nearest = np.full((NC, len(cells)), 255.0)
