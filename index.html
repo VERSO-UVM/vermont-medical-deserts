@@ -129,12 +129,12 @@ function render() {
 
   if (mode !== 'none') {
     cells.forEach((cell, i) => {
-      let col;
-      if (mode === 'time') col = pick(TIME, near[i]);
+      let col, op = 0.5;
+      if (mode === 'time') { col = pick(TIME, near[i]); op = near[i] > T ? 0.7 : 0.12; }
       else if (mode === 'overlap') col = pick(OVERLAP, cnt[i]);
       else if (near[i] > T) col = OVERLAP[0][1]; else return;
       L.rectangle([[cell[0], cell[1]], [cell[0] + dlat, cell[1] + dlon]], {
-        renderer: canvas, stroke: false, fillColor: col, fillOpacity: 0.5, interactive: false }).addTo(gridLayer);
+        renderer: canvas, stroke: false, fillColor: col, fillOpacity: op, interactive: false }).addTo(gridLayer);
     });
   }
 
@@ -151,10 +151,13 @@ function render() {
   }
 
   const scale = mode === 'time' ? TIME : mode === 'overlap' ? OVERLAP : mode === 'gaps' ? [OVERLAP[0]] : [];
-  const title = mode === 'time' ? 'Drive time to nearest provider'
+  const title = mode === 'time' ? `Drive time to nearest provider<br>Areas within ${T} min are faded`
               : mode === 'overlap' ? `Provider locations within ${T} min` : mode === 'gaps' ? `Beyond ${T} min` : '';
   $('legend').innerHTML = scale.length ? `<div class="muted" style="margin-top:8px">${title}</div>` +
-    scale.map(o => `<div><span style="background:${o[1]};opacity:.75"></span>${mode === 'gaps' ? 'No provider within ' + T + ' min' : o[2]}</div>`).join('') : '';
+    scale.map((o, k) => {
+      const faded = mode === 'time' && (scale[k + 1] ? scale[k + 1][0] - 1 : 999) <= T;
+      return `<div style="opacity:${faded ? .35 : 1}"><span style="background:${o[1]};opacity:.75"></span>${mode === 'gaps' ? 'No provider within ' + T + ' min' : o[2]}</div>`;
+    }).join('') : '';
 
   let holes = 0, sum = 0, n30 = 0;
   for (let i = 0; i < cells.length; i++) { if (near[i] > T) holes++; if (near[i] > 30) n30++; sum += Math.min(near[i], 90); }
