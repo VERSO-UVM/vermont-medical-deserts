@@ -57,8 +57,9 @@ _, idx = cKDTree(np.c_[cells[:, 0], cells[:, 1] * kx]).query(np.c_[rows[:, 0], r
 
 out = {}
 for name, col in (('all', 2), ('u18', 3), ('o65', 4), ('hh', 5), ('nocar', 6)):
-    a = np.bincount(idx, weights=rows[:, col], minlength=len(cells)).round().astype(np.uint32)
+    # float32, not integers: no-vehicle households are spread thinly, so most cells hold a fraction
+    a = np.bincount(idx, weights=rows[:, col], minlength=len(cells)).astype(np.float32)
     out[name] = base64.b64encode(a.tobytes()).decode()
-    print(name, 'max per cell', a.max(), 'sum', a.sum())
+    print(name, 'max per cell %.0f' % a.max(), 'sum %.0f' % a.sum())
 with open('app/pop.js', 'w', encoding='utf-8') as f:
     f.write('window.POP=' + json.dumps(out) + ';\n')

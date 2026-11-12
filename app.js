@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const val = name => document.querySelector(`input[name=${name}]:checked`).value;
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const b64 = (s, T) => new T(Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer);
-const POP = Object.fromEntries(Object.entries(window.POP).map(([k, v]) => [k, b64(v, Uint32Array)]));
+const POP = Object.fromEntries(Object.entries(window.POP).map(([k, v]) => [k, b64(v, Float32Array)]));
 const memo = {}, cached = (k, f) => memo[k] || (memo[k] = f());
 
 const COLORS = { mh: '#7b3294', pc: '#1a9850', dent: '#2c7bb6', rx: '#d7191c', rehab: '#fdae61', spec: '#4d4d4d',
@@ -14,7 +14,10 @@ const GROUPS = { all: ['All residents', 'people'], o65: ['Age 65+', 'people'], u
 const TIME = [[0, '#1a9850', '≤ 10 min'], [11, '#91cf60', '11–15'], [16, '#d9ef8b', '16–20'], [21, '#fee08b', '21–30'],
               [31, '#fc8d59', '31–45'], [46, '#d73027', '46–60'], [61, '#67001f', '> 60 min / none']];
 const OVERLAP = [[0, '#d7301f', '0 (hole)'], [1, '#fdcc8a', '1'], [2, '#c7e9c0', '2–3'], [4, '#74c476', '4–9'], [10, '#238b45', '10+']];
-const PEOPLE = [[1, '#fde0dd', '1–24'], [25, '#fa9fb5', '25–99'], [100, '#dd3497', '100–499'], [500, '#7a0177', '500+']];
+const PEOPLE = [[0.5, '#f9a8c9', '1–24'], [25, '#f768a1', '25–99'], [100, '#c51b8a', '100–499'], [500, '#7a0177', '500+']];
+// no-vehicle counts are block-group estimates spread over blocks, so most rural squares hold a fraction
+const HOUSEHOLDS = [[0.05, '#f9a8c9', 'under 1 (estimated)'], [1, '#f768a1', '1–4'], [5, '#c51b8a', '5–19'], [20, '#7a0177', '20+']];
+const MIN = 0.05;   // below this a square counts as having nobody in the group
 const pick = (scale, n) => scale.reduce((c, [t, col]) => (n >= t ? col : c), scale[0][1]);
 
 // ---- controls ----
@@ -94,10 +97,12 @@ function render() {
   const near = cached('n' + ci, () => b64(RD.nearest[ci], Uint8Array));
   const cnt = cached(`c${ci}_${ti}`, () => b64(RD.counts[ci][ti], Uint8Array));
 
+  const PSCALE = age === 'nocar' ? HOUSEHOLDS : PEOPLE;
   if (mode === 'none') { if (gridImg) map.removeLayer(gridImg); gridImg = null; }
   else drawGrid(i => {
-    if (mode === 'people') return near[i] > T && pop[i] ? rgba(pick(PEOPLE, pop[i]), 0.85) : null;
-    if (mode === 'time') return rgba(pick(TIME, near[i]), near[i] > T ? 0.7 : 0.12);
+    if (mode === 'people') return near[i] > T && pop[i] >= MIN ? rgba(pick(PSCALE, pop[i]), 0.85) : null;
+    // drive time where the selected group lives; squares with nobody in the group stay faint
+    if (mode === 'time') return rgba(pick(TIME, near[i]), pop[i] < MIN ? 0.07 : near[i] > T ? 0.8 : 0.35);
     if (mode === 'overlap') return rgba(pick(OVERLAP, cnt[i]), 0.55);
     return near[i] > T ? rgba(OVERLAP[0][1], 0.55) : null;
   });
@@ -115,9 +120,9 @@ function render() {
                            fillColor: col, fillOpacity: l.a ? 0 : 0.85 }).bindPopup(() => popup(l, list)).addTo(ptLayer);
   }
 
-  const scale = { people: PEOPLE, time: TIME, overlap: OVERLAP, gaps: [OVERLAP[0]] }[mode] || [];
+  const scale = { people: PSCALE, time: TIME, overlap: OVERLAP, gaps: [OVERLAP[0]] }[mode] || [];
   const title = { people: `${GROUPS[age][0]} more than ${T} min away, per 1.5 km square`,
-                  time: `Drive time to nearest provider (within ${T} min faded)`,
+                  time: `Drive time to nearest provider, where ${GROUPS[age][0].toLowerCase()} live (within ${T} min lighter)`,
                   overlap: `Provider locations within ${T} min`, gaps: `No provider within ${T} min` }[mode];
   $('legend').innerHTML = scale.length ? `<div class="muted">${title}</div>` + scale.map((o, k) => {
     const faded = mode === 'time' && (scale[k + 1] ? scale[k + 1][0] - 1 : 999) <= T;
@@ -130,7 +135,7 @@ function render() {
   const rows = Object.entries(GROUPS).map(([k, [label]]) => {
     let tot = 0, out = 0;
     POP[k].forEach((v, i) => { tot += v; if (near[i] > T) out += v; });
-    return `<tr${k === age ? ' style="font-weight:600"' : ''}><td>${label}</td><td>${out.toLocaleString()} · ${(100 * out / tot).toFixed(1)}%</td></tr>`;
+    return `<tr${k === age ? ' style="font-weight:600"' : ''}><td>${label}</td><td>${Math.round(out).toLocaleString()} · ${(100 * out / tot).toFixed(1)}%</td></tr>`;
   }).join('');
   $('summary').innerHTML = [
     [c === 'sn' ? 'Clinic sites' : 'Providers in selection', nProv.toLocaleString()],
@@ -141,7 +146,7 @@ function render() {
 
   const town = {};
   G.town.forEach((t, i) => { const v = town[t] || (town[t] = [0, 0]); v[0] += pop[i]; if (near[i] > T) v[1] += pop[i]; });
-  const worst = Object.entries(town).filter(([, v]) => v[1] >= 1).sort((a, b) => b[1][1] - a[1][1]).slice(0, 30);
+  const worst = Object.entries(town).filter(([, v]) => v[1] >= MIN).sort((a, b) => b[1][1] - a[1][1]).slice(0, 30);
   $('worst').innerHTML = worst.length
     ? `<tr class="muted"><td>Town</td><td>${GROUPS[age][1]} · % of town</td></tr>` + worst.map(([t, v]) =>
       `<tr class="click" data-t="${esc(D.towns[t])}"><td>${esc(D.towns[t])}</td><td>${Math.round(v[1]).toLocaleString()} · ${Math.round(100 * v[1] / v[0])}%</td></tr>`).join('')
