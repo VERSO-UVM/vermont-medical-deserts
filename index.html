@@ -47,7 +47,15 @@
   <h2>Drive-time threshold</h2>
   <div class="seg" id="thr"></div>
 
+  <h2>Population</h2>
+  <div class="seg">
+    <label><input type="radio" name="age" value="all" checked>All residents</label>
+    <label><input type="radio" name="age" value="o65">65+</label>
+    <label><input type="radio" name="age" value="u18">Under 18</label>
+  </div>
+
   <h2>Layer</h2>
+  <label><input type="radio" name="mode" value="people"> Residents beyond threshold</label>
   <label><input type="radio" name="mode" value="time" checked> Drive time to nearest provider</label>
   <label><input type="radio" name="mode" value="overlap"> Overlap (locations within threshold)</label>
   <label><input type="radio" name="mode" value="gaps"> Holes only (beyond threshold)</label>
@@ -60,8 +68,8 @@
   <h2>Summary</h2>
   <div id="summary"></div>
 
-  <h2>Towns with the least access</h2>
-  <div class="muted">Share of each town's area beyond the threshold. Click to zoom.</div>
+  <h2>Towns with the most residents beyond threshold</h2>
+  <div class="muted">For the selected population group. Click a town to zoom.</div>
   <table id="worst"></table>
 
   <h2>Notes</h2>
@@ -69,15 +77,21 @@
   winter closures (e.g. Smugglers' Notch, Route 108). Each 1.5 km grid square is timed from its centre, plus a
   short off-road leg to the nearest road. Only Vermont roads and providers are included, so border areas may
   have closer care in NH, NY, MA or Québec. Locations are NPPES practice addresses, which are sometimes billing
-  offices. Hollow dots are placed at a ZIP centroid.</div>
+  offices. Hollow dots are placed at a ZIP centroid. Population is from the 2020 Census (DHC) by block, assigned to
+  the grid square containing each block's centre; small-block counts include Census privacy noise, but totals are
+  reliable.</div>
 </div>
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="data.js"></script>
 <script src="roads.js"></script>
+<script src="pop.js"></script>
 <script>
 const D = window.DATA, RD = window.ROADS;
+const POP = {}; for (const k in window.POP) POP[k] = new Uint32Array(Uint8Array.from(atob(window.POP[k]), c => c.charCodeAt(0)).buffer);
+const AGE = { all: 'All residents', o65: 'Age 65+', u18: 'Under 18' };
+const PEOPLE = [[1,'#fde0dd','1–24'],[25,'#fa9fb5','25–99'],[100,'#dd3497','100–499'],[500,'#7a0177','500+']];
 const COLORS = { mh:'#7b3294', pc:'#1a9850', dent:'#2c7bb6', rx:'#d7191c', rehab:'#fdae61',
                  spec:'#4d4d4d', hosp:'#b2182b', nurse:'#41b6c4', comm:'#a6611a', other:'#999' };
 const $ = id => document.getElementById(id);
@@ -119,7 +133,7 @@ const OVERLAP = [[0,'#d7301f','0 — hole'],[1,'#fdcc8a','1'],[2,'#c7e9c0','2–
 const pick = (scale, n) => { let c = scale[0][1]; for (const [t, col] of scale) if (n >= t) c = col; return c; };
 
 function render() {
-  const c = sel.value, who = val('who'), T = +val('thr'), mode = val('mode');
+  const c = sel.value, who = val('who'), T = +val('thr'), mode = val('mode'), age = val('age'), pop = POP[age];
   const ci = RD.combos.indexOf(c + '|' + who), ti = RD.thresholds.indexOf(T);
   const near = arr('n' + ci, () => dec(RD.nearest[ci]));
   const cnt = arr('c' + ci + '_' + ti, () => dec(RD.counts[ci][ti]));
@@ -130,7 +144,8 @@ function render() {
   if (mode !== 'none') {
     cells.forEach((cell, i) => {
       let col, op = 0.5;
-      if (mode === 'time') { col = pick(TIME, near[i]); op = near[i] > T ? 0.7 : 0.12; }
+      if (mode === 'people') { if (near[i] <= T || !pop[i]) return; col = pick(PEOPLE, pop[i]); op = 0.8; }
+      else if (mode === 'time') { col = pick(TIME, near[i]); op = near[i] > T ? 0.7 : 0.12; }
       else if (mode === 'overlap') col = pick(OVERLAP, cnt[i]);
       else if (near[i] > T) col = OVERLAP[0][1]; else return;
       L.rectangle([[cell[0], cell[1]], [cell[0] + dlat, cell[1] + dlon]], {
@@ -150,8 +165,9 @@ function render() {
     });
   }
 
-  const scale = mode === 'time' ? TIME : mode === 'overlap' ? OVERLAP : mode === 'gaps' ? [OVERLAP[0]] : [];
-  const title = mode === 'time' ? `Drive time to nearest provider<br>Areas within ${T} min are faded`
+  const scale = mode === 'people' ? PEOPLE : mode === 'time' ? TIME : mode === 'overlap' ? OVERLAP : mode === 'gaps' ? [OVERLAP[0]] : [];
+  const title = mode === 'people' ? `${AGE[age]} more than ${T} min away, per 1.5 km square`
+              : mode === 'time' ? `Drive time to nearest provider<br>Areas within ${T} min are faded`
               : mode === 'overlap' ? `Provider locations within ${T} min` : mode === 'gaps' ? `Beyond ${T} min` : '';
   $('legend').innerHTML = scale.length ? `<div class="muted" style="margin-top:8px">${title}</div>` +
     scale.map((o, k) => {
@@ -170,19 +186,24 @@ function render() {
     ['≈ square miles beyond', Math.round(holes * cellKm2 / 2.59).toLocaleString()],
     ['VT area beyond 30 min', (100 * n30 / cells.length).toFixed(1) + '%'],
     ['Average drive (by area)', Math.round(sum / cells.length) + ' min'],
-  ].map(([a, b]) => `<div class="stat"><span>${a}</span><b>${b}</b></div>`).join('');
+  ].map(([a, b]) => `<div class="stat"><span>${a}</span><b>${b}</b></div>`).join('') +
+    `<table style="margin-top:8px"><tr class="muted"><td>Residents more than ${T} min away</td><td>people · % of group</td></tr>` +
+    Object.keys(AGE).map(k => {
+      let tot = 0, out = 0; const p = POP[k];
+      for (let i = 0; i < cells.length; i++) { tot += p[i]; if (near[i] > T) out += p[i]; }
+      return `<tr${k === age ? ' style="font-weight:600"' : ''}><td>${AGE[k]}</td><td>${out.toLocaleString()} · ${(100 * out / tot).toFixed(1)}%</td></tr>`;
+    }).join('') + '</table>';
 
   const town = {};
   cells.forEach((_, i) => {
     const t = cellTown[i]; if (!t) return;
-    town[t] = town[t] || [0, 0, 0]; town[t][0]++; town[t][2] += Math.min(near[i], 90); if (near[i] > T) town[t][1]++;
+    town[t] = town[t] || [0, 0]; town[t][0] += pop[i]; if (near[i] > T) town[t][1] += pop[i];
   });
-  const worst = Object.entries(town).filter(([, v]) => v[1]).map(([t, v]) => [t, v[1] / v[0], v[2] / v[0]])
-    .sort((a, b) => b[1] - a[1] || b[2] - a[2]).slice(0, 30);
+  const worst = Object.entries(town).filter(([, v]) => v[1]).sort((a, b) => b[1][1] - a[1][1]).slice(0, 30);
   $('worst').innerHTML = worst.length
-    ? '<tr class="muted"><td>Town</td><td>avg min · % beyond</td></tr>' +
-      worst.map(([t, f, avg]) => `<tr class="click" data-t="${t}"><td>${t}</td><td>${Math.round(avg)} · ${Math.round(f * 100)}%</td></tr>`).join('')
-    : '<tr><td class="muted">Every town is fully within the threshold.</td></tr>';
+    ? '<tr class="muted"><td>Town</td><td>people · % of town</td></tr>' +
+      worst.map(([t, v]) => `<tr class="click" data-t="${t}"><td>${t}</td><td>${v[1].toLocaleString()} · ${Math.round(100 * v[1] / v[0])}%</td></tr>`).join('')
+    : `<tr><td class="muted">No ${AGE[age].toLowerCase()} live beyond the threshold.</td></tr>`;
 }
 
 function pip(x, y, ring) { let ins = false;
@@ -204,7 +225,7 @@ $('worst').addEventListener('click', e => { const tr = e.target.closest('tr[data
 
 $('towns').onchange = () => $('towns').checked ? townLayer.addTo(map) : map.removeLayer(townLayer);
 ['cat', 'pts'].forEach(id => $(id).onchange = render);
-document.querySelectorAll('input[name=mode],input[name=who],input[name=thr]').forEach(r => r.onchange = render);
+document.querySelectorAll('input[name=mode],input[name=who],input[name=thr],input[name=age]').forEach(r => r.onchange = render);
 render();
 </script>
 </body>
