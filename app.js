@@ -37,13 +37,14 @@ const ptLayer = L.layerGroup().addTo(map), snLayer = L.layerGroup(), hpsaLayer =
 let gridImg = null;
 
 // grid cells -> row/col of one raster drawn in Web Mercator so it lines up with the tiles
-const G = D.grid, LAT0 = 42.72, LON0 = -73.44, PX = 4;
+const G = D.grid, LAT0 = 42.72, LON0 = -73.44, PX = 8;
 const rc = G.cells.map(([la, lo]) => [Math.round((la - LAT0) / G.dlat), Math.round((lo - LON0) / G.dlon)]);
 const NR = Math.max(...rc.map(r => r[0])) + 1, NC = Math.max(...rc.map(r => r[1])) + 1;
 const merc = la => Math.log(Math.tan(Math.PI / 4 + la * Math.PI / 360));
 const M0 = merc(LAT0), M1 = merc(LAT0 + NR * G.dlat), H = NR * PX;
 const ypx = la => (M1 - merc(la)) / (M1 - M0) * H;
-const rowY = Array.from({ length: NR + 1 }, (_, r) => ypx(LAT0 + r * G.dlat));
+// whole-pixel row edges shared by neighbouring rows, so rows neither overlap nor leave gaps
+const rowY = Array.from({ length: NR + 1 }, (_, r) => Math.round(ypx(LAT0 + r * G.dlat)));
 const gridBounds = [[LAT0, LON0], [LAT0 + NR * G.dlat, LON0 + NC * G.dlon]];
 
 function drawGrid(colorOf) {
@@ -54,7 +55,7 @@ function drawGrid(colorOf) {
     const s = colorOf(i);
     if (!s) return;
     ctx.fillStyle = s;
-    ctx.fillRect(c * PX, Math.floor(rowY[r + 1]), PX, Math.ceil(rowY[r]) - Math.floor(rowY[r + 1]));
+    ctx.fillRect(c * PX, rowY[r + 1], PX, rowY[r] - rowY[r + 1]);
   });
   if (gridImg) map.removeLayer(gridImg);
   gridImg = L.imageOverlay(cv.toDataURL(), gridBounds, { className: 'grid-img', interactive: false }).addTo(map);
